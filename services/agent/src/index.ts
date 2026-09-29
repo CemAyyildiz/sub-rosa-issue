@@ -19,6 +19,8 @@ export {
 
 export {
   runBidderAgent,
+  commitErrorCode,
+  type AgentCommitOutcome,
   type BidderAgentConfig,
   type BidderAgentResult,
 } from "./bidder.js";

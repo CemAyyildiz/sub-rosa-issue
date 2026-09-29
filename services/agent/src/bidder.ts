@@ -45,6 +45,27 @@ export interface BidderAgentConfig {
   drand?: DrandClient;
   log?: (msg: string) => void;
   clock?: Clock;
+  /**
+   * Observes the SDK commit call. Emits `pending` right before the SDK call,
+   * then exactly one of `committed` (the SDK call resolved) or `failed`.
+   */
+  onCommitStatus?: (outcome: AgentCommitOutcome) => void;
+}
+
+/** Commit status for one bidder, derived only from the SDK `commit` result. */
+export type AgentCommitOutcome =
+  | { status: "pending"; bidder: string }
+  | { status: "committed"; bidder: string }
+  | { status: "failed"; bidder: string; code: string };
+
+/** Stable, secret-free code for an SDK commit failure (error class plus contract code when known). */
+export function commitErrorCode(error: unknown): string {
+  if (error instanceof Error) {
+    const contractCode = (error as { contractErrorCode?: unknown }).contractErrorCode;
+    const base = error.name && error.name !== "Error" ? error.name : "CommitError";
+    return typeof contractCode === "number" ? `${base}#${contractCode}` : base;
+  }
+  return "CommitError";
 }
 
 export interface BidderAgentResult {
@@ -55,6 +76,7 @@ export interface BidderAgentResult {
   appraisal: Appraisal;
   appraisalSettlement?: SettleResponse;
   inputsHash: string;
+  commit: AgentCommitOutcome;
 }
 
 function appraisalRequest(mandate: SessionMandate, attributes: AppraisalAttributes): AppraisalRequest {
@@ -175,7 +197,17 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
   // Sealing and simulation may consume the remaining window; the contract is final authority.
   assertCommitEligible(await reader.getRound(roundId), roundId, clock);
   verifySessionMandate(config.mandate, { clock, roundId, contractId: config.mandate.contractId });
-  await bidder.commit({ roundId, sealed, escrow });
+  const bidderAddress = sessionKp.publicKey();
+  const report = config.onCommitStatus ?? (() => {});
+  report({ status: "pending", bidder: bidderAddress });
+  try {
+    await bidder.commit({ roundId, sealed, escrow });
+  } catch (error) {
+    report({ status: "failed", bidder: bidderAddress, code: commitErrorCode(error) });
+    throw error;
+  }
+  const commit: AgentCommitOutcome = { status: "committed", bidder: bidderAddress };
+  report(commit);
   log(`committed sealed bid for round ${roundId}`);
 
   return {
@@ -186,5 +218,6 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
     appraisal,
     appraisalSettlement: paid.settlement,
     inputsHash: appraisal.inputsHash,
+    commit,
   };
 }
