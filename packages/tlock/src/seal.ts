@@ -11,7 +11,7 @@ import { timelockEncrypt, timelockDecrypt, Buffer as TlockBuffer } from "tlock-j
 import { randomBytes } from "@noble/hashes/utils.js";
 
 import { commitment, decodeBidPreimage, encodeBidPreimage, NONCE_BYTES } from "./commitment.js";
-import { sealIdentity } from "./auditor.js";
+import { sealIdentityForBidder } from "./auditor.js";
 import type { DrandClient } from "./quicknet.js";
 
 const utf8Encode = new TextEncoder();
@@ -57,7 +57,12 @@ export async function sealBid(params: SealBidParams): Promise<SealedBid> {
 
   let auditorBlob = new Uint8Array(0);
   if (identity && auditorPublicKey) {
-    auditorBlob = new Uint8Array(sealIdentity(identity, auditorPublicKey));
+    // Bind the blob to this bid: the auditor can then prove the recovered
+    // identity is the one committed with the seal, not a swapped blob from
+    // another bidder (issue #382).
+    auditorBlob = new Uint8Array(
+      sealIdentityForBidder({ identity, round, commitment: h, auditorPublicKey }),
+    );
   } else if (identity || auditorPublicKey) {
     throw new Error("identity and auditorPublicKey must be provided together");
   }

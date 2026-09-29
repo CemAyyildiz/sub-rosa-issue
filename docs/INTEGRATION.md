@@ -132,6 +132,39 @@ pnpm --filter @sub-rosa/tlock recover:identities -- \
   --label agent-alpha
 ```
 
+### Identity binding
+
+Auditor blobs produced by `sealBid` and `sealPayload` are bound to the bid they
+were sealed with: the round and the bid commitment travel inside the encrypted
+payload. Recovery should therefore pass both, so the CLI can prove the
+recovered identity is the one committed with the seal:
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --blob-hex <blob-hex> \
+  --round 7777 \
+  --commitment-hex <32-byte-hex>
+```
+
+Without these flags a blob sealed by `sealBid`/`sealPayload` is refused, because
+printing its contents would disclose an identity that has not been tied to a
+bidder. A blob carrying the older unbound format (produced by the lower-level
+`sealIdentity`) still recovers without them, since there is no binding to check.
+
+When the binding does not hold, the row carries an error and **no** identity is
+printed:
+
+| Situation | Error |
+| --- | --- |
+| Blob sealed for another bidder in the same round | `auditor blob identity commitment mismatch` |
+| Blob from a different round | `auditor blob round mismatch` |
+| Bound blob recovered without `--round`/`--commitment-hex` | `auditor blob is identity-bound but --round and --commitment-hex were not supplied` |
+| Truncated or non-hex blob | rejected while parsing, before decryption |
+
+`--round` and `--commitment-hex` must be supplied together; either alone is
+rejected as bad input.
+
 Canonical trace JSON is supported as well, including shapes like
 `{"trace":{"auditor":{"blobs":{...}}}}` and
 `{"auditor":{"blobs":{...}}}` exported from lifecycle/agent fixtures.
