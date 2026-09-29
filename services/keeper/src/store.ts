@@ -15,6 +15,7 @@ export interface WatchedRound {
   retryCount: number;
   lastError?: string;
   lastAction?: string;
+  queueStatus?: "queued" | "in-flight" | "terminal";
 }
 
 export interface StoreData {
