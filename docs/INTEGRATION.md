@@ -187,6 +187,32 @@ Future templates can adapt the same primitive to grants, judging, RFPs, DAO
 polls, or allocation workflows, but those do not lead the current SCF
 resubmission.
 
+## Sealed-auction template
+
+`services/auction-template` is the runnable integration template. It is a
+**thin caller of the shared rules** — it defines no lifecycle of its own:
+
+- **Phase decisions** come from the SDK round-status helpers
+  (`packages/sdk/src/round-status.ts`).
+- **Settlement safety** comes from the escrow conservation preflight
+  (`packages/sdk/src/preflight.ts` powers the simulation; the template's
+  conservation check mirrors the receipt verifier's invariant).
+- **Round binding** comes from the seal's Drand round: a bid sealed for any
+  round other than the round's `revealRound` is refused before commit.
+
+Entry points:
+
+| File | Role |
+| --- | --- |
+| `sealed-auction.ts` | Runnable lifecycle: `FIXTURE=1` replays the offline golden receipt; without it, the full testnet run (requires funded keys + `WASM_HASH`) |
+| `template-rules.ts` | Pure, offline-testable guards every entry point shares: `templatePhaseGate` (SDK phase predicates), `checkEscrowConservation` (settle preflight), `checkSealRound` (seal/Drand-round binding) |
+| `sealed-auction.smoke.test.ts` | Offline smoke: fixture shape, commitment hashes, winner derivation, template guards, and the full happy-path fixture settle — no live network |
+
+The guards are intentionally boring: `templatePhaseGate` maps the SDK's
+`RoundStatus` vocabulary to the one question an integrator has — *may I
+reveal / clear / settle right now?* — and refuses with a reason otherwise.
+Integrators should copy the guards, not the lifecycle wiring.
+
 ## Hosted vs embedded
 
 | Mode | Who uses it | Notes |
