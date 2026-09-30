@@ -13,7 +13,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { timelockDecrypt, timelockEncrypt, Buffer as TlockBuffer } from "tlock-js";
 
-import { sealIdentity } from "./auditor.js";
+import { sealIdentityForBidder } from "./auditor.js";
 import { beBytesToI128, i128ToBeBytes, NONCE_BYTES, VALUE_BYTES } from "./commitment.js";
 import type { DrandClient } from "./quicknet.js";
 
@@ -166,7 +166,11 @@ export async function sealPayload(params: SealPayloadParams): Promise<SealedPayl
 
   let auditorBlob = new Uint8Array(0);
   if (identity && auditorPublicKey) {
-    auditorBlob = new Uint8Array(sealIdentity(identity, auditorPublicKey));
+    // Bound to the payload commitment, so recovery can prove the identity
+    // belongs to this exact sealed payload (issue #382).
+    auditorBlob = new Uint8Array(
+      sealIdentityForBidder({ identity, round, commitment: sha256(encoded), auditorPublicKey }),
+    );
   } else if (identity || auditorPublicKey) {
     throw new Error("identity and auditorPublicKey must be provided together");
   }

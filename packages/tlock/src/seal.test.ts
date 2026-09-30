@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { quicknet, currentRound } from "./quicknet.js";
 import { sealBid, openBid, generateNonce } from "./seal.js";
 import { commitment, toHex } from "./commitment.js";
-import { generateAuditorKeypair, openIdentity } from "./auditor.js";
+import { generateAuditorKeypair, openIdentityForBidder } from "./auditor.js";
 import { openPayload, payloadCommitment, sealPayload } from "./payload.js";
 
 // These tests hit the live Drand quicknet network (no mock).
@@ -44,8 +44,16 @@ test(
     // reveal — i.e. this reveal would be accepted on-chain.
     assert.equal(toHex(commitment(opened.value, opened.nonce)), toHex(sealed.commitment));
 
-    // Auditor (and only the auditor) recovers the identity.
-    assert.deepEqual([...openIdentity(sealed.auditorBlob, auditor.secretKey)], [...identity]);
+    // Auditor (and only the auditor) recovers the identity. The blob is bound to
+    // this bid's round and commitment, so recovery also proves the identity
+    // belongs to this seal rather than a swapped blob (issue #382).
+    const openedIdentity = openIdentityForBidder(sealed.auditorBlob, {
+      auditorSecretKey: auditor.secretKey,
+      round,
+      commitment: sealed.commitment,
+    });
+    assert.deepEqual([...openedIdentity.identity], [...identity]);
+    assert.equal(openedIdentity.round, round);
   },
 );
 
@@ -79,7 +87,12 @@ test(
     assert.deepEqual(opened.nonce, nonce);
     assert.deepEqual(opened.payload, payload);
     assert.equal(toHex(payloadCommitment(opened)), toHex(sealed.commitment));
-    assert.deepEqual(openIdentity(sealed.auditorBlob, auditor.secretKey), identity);
+    const payloadOpened = openIdentityForBidder(sealed.auditorBlob, {
+      auditorSecretKey: auditor.secretKey,
+      round,
+      commitment: sealed.commitment,
+    });
+    assert.deepEqual([...payloadOpened.identity], [...identity]);
   },
 );
 
