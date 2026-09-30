@@ -16,7 +16,11 @@ const EXPECTED_EXPORTS = [
   "MAINNET_MIN_FEE_RESERVE_STROOPS",
   "MAX_AUDITOR_BLOB_BYTES",
   "MAX_CIPHERTEXT_BYTES",
+  "RECEIPT_EVENT_ERROR_CODES",
   "RECEIPT_VERSION",
+  "ROUND_EVENT_LIFECYCLE_ORDER",
+  "ROUND_EVENT_PHASE_BY_NAME",
+  "ROUND_EVENT_PHASE_RANK",
   "RoundContract",
   "RoundErrors",
   "StatusApiError",
@@ -58,6 +62,7 @@ const EXPECTED_EXPORTS = [
   "redactReceipt",
   "roundStatusLabel",
   "runMainnetReadiness",
+  "expectedRoundEventSequence",
   "serializeReceipt",
   "tryDecodeBase64",
   "tryDecodeHex",
@@ -66,6 +71,7 @@ const EXPECTED_EXPORTS = [
   "validateEncryptedBlob",
   "validateContractNetwork",
   "verifyReceipt",
+  "verifyReceiptEvents",
   "verifySettledRoundProof",
 ];
 

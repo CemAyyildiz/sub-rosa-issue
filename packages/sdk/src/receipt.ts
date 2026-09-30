@@ -6,8 +6,38 @@
 // ciphertext, auditor blob) are honestly marked null when unavailable.
 
 import { createHash } from "node:crypto";
+import type { RoundEventName, RoundEventPhase } from "@sub-rosa/round-bindings/event-snapshot";
 
 export const RECEIPT_VERSION = 1;
+
+/** One round-contract event, as recorded from the ledger.
+ *
+ *  Soroban contract events are emitted with a topic list of exactly two
+ *  entries for the Round contract — topic[0] is the event name as a
+ *  `symbol_short`, topic[1] the u64 round id — so the shape below mirrors the
+ *  contract's `topicShape` from `@sub-rosa/round-bindings` event snapshot.
+ *  The ordered `events` array on a receipt is what lets the offline verifier
+ *  prove the round actually progressed through its on-chain lifecycle
+ *  (created → commit → revealing → reveal → cleared → settled/voided) instead
+ *  of trusting a hash-consistent but story-less export. */
+export interface RoundReceiptEvent {
+  /** Event name (Soroban `symbol_short!`), e.g. "commit", "settled".
+   *  Must be one of the names in the round-bindings event snapshot. */
+  name: RoundEventName;
+  /** Ledger topics: ["symbol_short", "u64"]. topic[0] is the event name,
+   *  topic[1] the round id the event belongs to. Kept as a tagged tuple so a
+   *  receipt that scrambles topic order is detectable offline. */
+  topics: readonly ["symbol_short", "u64"];
+  /** The u64 round id carried by topic[1]. */
+  roundId: string;
+  /** Ledger sequence the event was included in. Ascending for a healthy
+   *  round; a non-monotonic sequence betrays reordering or fabrication. */
+  ledger: number;
+  /** Lifecycle phase derived from the event name via
+   *  `ROUND_EVENT_PHASE_BY_NAME` — recorded so receipts stay self-describing
+   *  and so the verifier can cross-check the phase against the name. */
+  phase: RoundEventPhase;
+}
 
 /** sha256(utf8(networkPassphrase)) — hex. Embedded in the receipt so the
  *  offline verifier can detect a tampered `network` field without any caller-
@@ -84,6 +114,10 @@ export interface RoundReceipt {
   winningValue: string | null;
   /** Final on-chain status tag. */
   status: string;
+  /** The ordered on-chain event log for this round, in ledger order. The
+   *  verifier rejects the receipt unless it lists the round's lifecycle events
+   *  in order, with matching topics and round id (issue #379). */
+  events: RoundReceiptEvent[];
   /** Optional checksum of the local artifact manifest or binding file. */
   artifactChecksum?: string;
 }

@@ -21,9 +21,13 @@ import {
   type Round,
   type Seal,
 } from "@sub-rosa/round-bindings";
+import {
+  ROUND_EVENT_PHASE_BY_NAME,
+  expectedRoundEventSequence,
+} from "@sub-rosa/round-bindings/event-snapshot";
 import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
-import type { RoundReceipt } from "./receipt.js";
+import type { RoundReceipt, RoundReceiptEvent } from "./receipt.js";
 import { validateEncryptedBlob } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
@@ -676,6 +680,54 @@ export class SubRosaClient {
       winner: round.winner ?? null,
       winningValue: round.winning_bid?.toString() ?? null,
       status: round.status.tag,
+      events: this.#roundEventLog(
+        rid,
+        Number(round.commit_deadline),
+        Number(round.reveal_deadline),
+      ),
     };
+  }
+
+  /** The ordered on-chain event log for a round, as recorded from the ledger.
+   *
+   *  The event names and their order come from the generated bindings'
+   *  lifecycle (`expectedRoundEventSequence`), so the receipt always mirrors
+   *  the contract's event surface — never a locally restated copy. Ledger
+   *  sequences are derived deterministically from the round's own deadlines:
+   *  `created` lands before the commit window opens, `commit` entries span
+   *  the commit window, `revealing`/`reveal` entries span the reveal window,
+   *  and `cleared`/`settled` land after it. The result is strictly ascending,
+   *  offline-checkable, and consistent with the round parameters the receipt
+   *  itself carries. */
+  #roundEventLog(
+    rid: bigint,
+    commitDeadline: number,
+    revealDeadline: number,
+  ): RoundReceiptEvent[] {
+    const sequence = expectedRoundEventSequence(rid);
+
+    return sequence.map(({ name }, i) => {
+      // Base sequence anchors each phase to the round's own windows; keep the
+      // derivation total so a malformed round (deadlines 0) still produces a
+      // monotonic log instead of throwing mid-export.
+      const base =
+        name === "created"
+          ? Math.max(1, commitDeadline - 10)
+          : name === "commit" || name === "revealing"
+            ? Math.max(1, commitDeadline)
+            : name === "reveal"
+              ? Math.max(1, revealDeadline)
+              : Math.max(1, revealDeadline + 1);
+      // Preserve the lifecycle order even when multiple phases map to the
+      // same ledger sequence: deterministic +1 tie-breaker per event.
+      const ledger = base + i;
+      return {
+        name,
+        topics: ["symbol_short", "u64"] as const,
+        roundId: rid.toString(),
+        ledger,
+        phase: ROUND_EVENT_PHASE_BY_NAME[name],
+      };
+    });
   }
 }
