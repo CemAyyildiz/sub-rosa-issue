@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, Vec};
+use soroban_sdk::{contracterror, contracttype, String, Address, Bytes, BytesN, Vec};
 
 /// Contract error codes. Every failure state from the PRD has a defined code —
 /// there is no undefined behavior and no silent fallback.
@@ -76,6 +76,22 @@ pub struct GlobalConfig {
     pub usdc: Address,
 }
 
+/// Asset configuration for the round.
+#[contracttype]
+#[derive(Clone)]
+pub struct RoundAssetConfig {
+    /// Asset type: "native" (XLM) or "sac"
+    pub asset_type: String,
+    /// SAC contract ID (empty for native XLM)
+    pub contract_id: String,
+    /// SAC asset code (e.g., "USDC")
+    pub code: String,
+    /// SAC asset decimals
+    pub decimals: u32,
+    /// SAC asset issuer (empty for native XLM)
+    pub issuer: String,
+}
+
 /// Per-round record (Persistent). Survives until the round is explicitly closed.
 #[contracttype]
 #[derive(Clone)]
@@ -97,6 +113,9 @@ pub struct Round {
     pub bidders: Vec<Address>,
     pub winner: Option<Address>,
     pub winning_bid: i128,
+    /// Expected asset config for this round. Used by the SDK to validate
+    /// that bidders are locking the correct asset.
+    pub asset_config: RoundAssetConfig,
 }
 
 /// Per-bid durable state (Persistent). Holds everything required to clear and

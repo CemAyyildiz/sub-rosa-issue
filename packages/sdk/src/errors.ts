@@ -89,6 +89,13 @@ export interface TimeoutErrorParams {
   pollIntervalMs: number;
 }
 
+
+export class SubRosaAssetValidationError extends Error {
+  readonly name = "SubRosaAssetValidationError";
+
+  constructor(readonly field: string, message: string) {
+    super(`${field}: ${message}`);
+
 export type PreflightFailureKind =
   | "rpc_error"
   | "simulation_error"

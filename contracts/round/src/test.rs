@@ -160,6 +160,13 @@ fn b32(env: &Env, byte: u8) -> BytesN<32> {
 }
 
 fn open_round(f: &Fixture, operator: &Address) -> u64 {
+    let asset_config = RoundAssetConfig {
+        asset_type: "sac".to_string(),
+        contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
+        code: "USDC".to_string(),
+        decimals: 7,
+        issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
+    };
     f.client.create_round(
         operator,
         &b32(&f.env, 1),
@@ -168,6 +175,7 @@ fn open_round(f: &Fixture, operator: &Address) -> u64 {
         &1_500,
         &2_500,
         &Bytes::from_array(&f.env, b"auditor-pubkey"),
+        asset_config,
     )
 }
 
@@ -295,6 +303,13 @@ fn create_round_rejects_commit_after_reveal() {
     let res = f.client.try_create_round(
         &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
         &2_000, &2_500, &Bytes::from_array(&f.env, b"a"),
+        RoundAssetConfig {
+            asset_type: "sac".to_string(),
+            contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
+            code: "USDC".to_string(),
+            decimals: 7,
+            issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
+        },
     );
     assert!(res.is_err());
 }
@@ -306,6 +321,13 @@ fn create_round_rejects_deadline_in_past() {
     let res = f.client.try_create_round(
         &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
         &500, &2_500, &Bytes::from_array(&f.env, b"a"),
+        RoundAssetConfig {
+            asset_type: "sac".to_string(),
+            contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
+            code: "USDC".to_string(),
+            decimals: 7,
+            issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
+        },
     );
     assert!(res.is_err());
 }

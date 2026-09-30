@@ -35,6 +35,7 @@ export {
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
+  SubRosaAssetValidationError,
 } from "./errors.js";
 export type {
   NetworkMismatchErrorParams,

@@ -75,6 +75,7 @@ impl SubRosaRound {
         commit_deadline: u64,
         reveal_deadline: u64,
         auditor_pubkey: Bytes,
+        asset_config: RoundAssetConfig,
     ) -> Result<u64, Error> {
         operator.require_auth();
         let config = get_config(&env)?;
@@ -115,6 +116,7 @@ impl SubRosaRound {
             bidders: Vec::new(&env),
             winner: None,
             winning_bid: 0,
+            asset_config,
         };
         set_round(&env, round_id, &round);
 
