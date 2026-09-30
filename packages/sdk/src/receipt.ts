@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 
 export const RECEIPT_VERSION = 1;
+export const SUPPORTED_RECEIPT_VERSIONS: readonly number[] = [1];
 
 /** sha256(utf8(networkPassphrase)) — hex. Embedded in the receipt so the
  *  offline verifier can detect a tampered `network` field without any caller-
@@ -103,7 +104,37 @@ export function serializeReceipt(receipt: RoundReceipt): string {
   return JSON.stringify(receipt, sortKeys) + "\n";
 }
 
+/** Thrown when a receipt cannot be parsed or fails structural validation. */
+export class ReceiptParseError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ReceiptParseError";
+    this.code = code;
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /** Parse a receipt from its canonical JSON form. */
 export function parseReceipt(json: string): RoundReceipt {
-  return JSON.parse(json) as RoundReceipt;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new ReceiptParseError("MALFORMED_JSON", "receipt is not valid JSON");
+  }
+  if (!isPlainObject(parsed)) {
+    throw new ReceiptParseError("MALFORMED_RECEIPT", "receipt must be a JSON object");
+  }
+  const version = parsed.version;
+  if (typeof version !== "number" || !SUPPORTED_RECEIPT_VERSIONS.includes(version)) {
+    throw new ReceiptParseError(
+      "UNKNOWN_SCHEMA_VERSION",
+      `unsupported receipt schema version: ${String(version)}`,
+    );
+  }
+  return parsed as unknown as RoundReceipt;
 }
