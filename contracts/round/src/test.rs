@@ -8,7 +8,7 @@ use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 
 use crate::drand;
 use crate::storage::{seal_ttl_for_reveal_deadline, TEMP_THRESHOLD};
-use crate::types::{ClearingRule, DataKey, Error, GlobalConfig, Status};
+use crate::types::{ClearingRule, DataKey, Error, GlobalConfig, RoundAssetConfig, Status};
 use crate::{SubRosaRound, SubRosaRoundClient};
 
 // ── Dummy fixture (no BLS) — only for tests that never call open_reveal ──────
@@ -140,6 +140,7 @@ fn drand_round(f: &Fixture, operator: &Address, commit_deadline: u64, reveal_dea
         &commit_deadline,
         &reveal_deadline,
         &Bytes::from_array(&f.env, b"auditor"),
+        &sac_asset_config(&f.env),
     )
 }
 
@@ -159,14 +160,24 @@ fn b32(env: &Env, byte: u8) -> BytesN<32> {
     BytesN::from_array(env, &[byte; 32])
 }
 
-fn open_round(f: &Fixture, operator: &Address) -> u64 {
-    let asset_config = RoundAssetConfig {
-        asset_type: "sac".to_string(),
-        contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
-        code: "USDC".to_string(),
+fn sac_asset_config(env: &Env) -> RoundAssetConfig {
+    RoundAssetConfig {
+        asset_type: soroban_sdk::String::from_str(env, "sac"),
+        contract_id: soroban_sdk::String::from_str(
+            env,
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        ),
+        code: soroban_sdk::String::from_str(env, "USDC"),
         decimals: 7,
-        issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
-    };
+        issuer: soroban_sdk::String::from_str(
+            env,
+            "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+        ),
+    }
+}
+
+fn open_round(f: &Fixture, operator: &Address) -> u64 {
+    let asset_config = sac_asset_config(&f.env);
     f.client.create_round(
         operator,
         &b32(&f.env, 1),
@@ -175,7 +186,7 @@ fn open_round(f: &Fixture, operator: &Address) -> u64 {
         &1_500,
         &2_500,
         &Bytes::from_array(&f.env, b"auditor-pubkey"),
-        asset_config,
+        &asset_config,
     )
 }
 
@@ -302,14 +313,8 @@ fn create_round_rejects_commit_after_reveal() {
     let operator = Address::generate(&f.env);
     let res = f.client.try_create_round(
         &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
-        &2_000, &2_500, &Bytes::from_array(&f.env, b"a"),
-        RoundAssetConfig {
-            asset_type: "sac".to_string(),
-            contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
-            code: "USDC".to_string(),
-            decimals: 7,
-            issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
-        },
+        &2_000, &2_500,        &Bytes::from_array(&f.env, b"a"),
+        &sac_asset_config(&f.env),
     );
     assert!(res.is_err());
 }
@@ -320,14 +325,8 @@ fn create_round_rejects_deadline_in_past() {
     let operator = Address::generate(&f.env);
     let res = f.client.try_create_round(
         &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
-        &500, &2_500, &Bytes::from_array(&f.env, b"a"),
-        RoundAssetConfig {
-            asset_type: "sac".to_string(),
-            contract_id: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4".to_string(),
-            code: "USDC".to_string(),
-            decimals: 7,
-            issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string(),
-        },
+        &500, &2_500,        &Bytes::from_array(&f.env, b"a"),
+        &sac_asset_config(&f.env),
     );
     assert!(res.is_err());
 }
@@ -1108,6 +1107,7 @@ fn full_lifecycle_real_drand_signature() {
     let id = f.client.create_round(
         &operator, &b32(&f.env, 0xAB), &VEC_ROUND, &ClearingRule::HighestBid,
         &commit_deadline, &reveal_deadline, &Bytes::from_array(&f.env, b"auditor"),
+        &sac_asset_config(&f.env),
     );
 
     let alice = funded_bidder(&f, 1_000);
