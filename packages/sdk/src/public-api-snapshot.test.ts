@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import * as sdk from "./index.js";
 
 const EXPECTED_EXPORTS = [
+  "SubRosaPaginationError",
   "ASSET_FIXTURES",
   "AssetConfigError",
   "ACTIVE_ROUND_STATUSES",

@@ -73,7 +73,7 @@ test("exportReceipt includes revealed_nonce — offline verifier recomputes comm
   (client.contract as any).get_config = async () =>
     fakeResult({ usdc: addr(3), drand_pubkey: Buffer.alloc(192), g2_neg_generator: Buffer.alloc(192), dst: Buffer.alloc(0), drand_genesis: 0n, drand_period: 3n });
   (client.contract as any).get_bidders_page = async (_args: any) =>
-    fakeResult({ data: [bidder], next_cursor: 0, total: 1 });
+    fakeResult({ data: [bidder], next_cursor: undefined, has_more: false, total: 1 });
   (client.contract as any).get_bid_state = async () => fakeResult(fakeBidState);
   (client.contract as any).get_seal = async () => ({ result: undefined });
 
