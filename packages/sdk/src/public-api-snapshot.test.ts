@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import * as sdk from "./index.js";
 
 const EXPECTED_EXPORTS = [
+  "SubRosaPaginationError",
   "ASSET_FIXTURES",
   "AssetConfigError",
   "ACTIVE_ROUND_STATUSES",
@@ -16,11 +17,18 @@ const EXPECTED_EXPORTS = [
   "MAINNET_MIN_FEE_RESERVE_STROOPS",
   "MAX_AUDITOR_BLOB_BYTES",
   "MAX_CIPHERTEXT_BYTES",
+  "RECEIPT_EVENT_ERROR_CODES",
   "RECEIPT_VERSION",
+  "ROUND_EVENT_LIFECYCLE_ORDER",
+  "ROUND_EVENT_PHASE_BY_NAME",
+  "ROUND_EVENT_PHASE_RANK",
+  "ROUND_PHASES",
+  "ROUND_PHASE_LABELS",
   "RoundContract",
   "RoundErrors",
   "StatusApiError",
   "StatusJsonParseError",
+  "SubRosaAssetValidationError",
   "SubRosaClient",
   "SubRosaClientConfigError",
   "SubRosaMissingReturnValueError",
@@ -49,6 +57,7 @@ const EXPECTED_EXPORTS = [
   "isKeeperRoundActive",
   "isKeeperRoundSettlementPending",
   "isKeeperRoundTerminal",
+  "isRoundPhase",
   "isTerminalRoundStatus",
   "nativeXlmSacId",
   "networkFingerprint",
@@ -56,8 +65,10 @@ const EXPECTED_EXPORTS = [
   "normalizeSorobanContractId",
   "parseReceipt",
   "redactReceipt",
+  "roundPhaseLabel",
   "roundStatusLabel",
   "runMainnetReadiness",
+  "expectedRoundEventSequence",
   "serializeReceipt",
   "tryDecodeBase64",
   "tryDecodeHex",
@@ -66,6 +77,7 @@ const EXPECTED_EXPORTS = [
   "validateEncryptedBlob",
   "validateContractNetwork",
   "verifyReceipt",
+  "verifyReceiptEvents",
   "verifySettledRoundProof",
 ];
 

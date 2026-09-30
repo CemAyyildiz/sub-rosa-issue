@@ -1,4 +1,17 @@
 // SPDX-License-Identifier: MIT
+/** Enumeration stopped because a page cannot be consumed without data loss. */
+export class SubRosaPaginationError extends Error {
+  readonly name = "SubRosaPaginationError";
+
+  constructor(
+    readonly roundId: bigint,
+    readonly reason: "repeated_bidder" | "invalid_page" | "repeated_cursor",
+    readonly bidder?: string,
+  ) {
+    super(`bidder enumeration for round ${roundId} failed: ${reason}${bidder ? ` (${bidder})` : ""}`);
+  }
+}
+
 export class SubRosaClientConfigError extends Error {
   readonly name = "SubRosaClientConfigError";
 
@@ -74,6 +87,15 @@ export interface TimeoutErrorParams {
   lastStatus: string;
   timeoutMs: number;
   pollIntervalMs: number;
+}
+
+
+export class SubRosaAssetValidationError extends Error {
+  readonly name = "SubRosaAssetValidationError";
+
+  constructor(readonly field: string, message: string) {
+    super(`${field}: ${message}`);
+  }
 }
 
 export type PreflightFailureKind =
