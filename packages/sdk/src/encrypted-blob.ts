@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Encrypted blob validation — size, content-type, and encoding checks.
 //
 // The contract enforces a 4096-byte maximum for ciphertext (Soroban Temporary
@@ -195,9 +196,18 @@ export function validateEncryptedBlob(
   let byteLength: number;
 
   if (typeof blob === "string") {
-    // Try hex first, then base64.
-    const hexDecoded = tryDecodeHex(blob);
-    const b64Decoded = hexDecoded ? null : tryDecodeBase64(blob);
+    const encoding = options?.encoding;
+    let hexDecoded: ReturnType<typeof tryDecodeHex> = null;
+    let b64Decoded: ReturnType<typeof tryDecodeBase64> = null;
+
+    if (encoding === "hex") {
+      hexDecoded = tryDecodeHex(blob);
+    } else if (encoding === "base64") {
+      b64Decoded = tryDecodeBase64(blob);
+    } else {
+      hexDecoded = tryDecodeHex(blob);
+      b64Decoded = hexDecoded ? null : tryDecodeBase64(blob);
+    }
 
     if (hexDecoded) {
       rawBytes = hexDecoded.bytes;
@@ -209,7 +219,7 @@ export function validateEncryptedBlob(
       // Not valid hex or base64.
       add(
         "invalid_encoding",
-        `${HUMAN_LABELS[ct]} is not valid hex or base64 encoding (length=${blob.length})`,
+        `${HUMAN_LABELS[ct]} is not valid ${encoding ?? "hex or base64"} encoding (length=${blob.length})`,
       );
       return { valid: false, issues };
     }
