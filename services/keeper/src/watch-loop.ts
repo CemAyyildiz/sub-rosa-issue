@@ -104,6 +104,20 @@ async function resolveRoundIds(reader: SubRosaClient): Promise<bigint[]> {
   });
 }
 
+export function validateStoredCheckpoint(
+  rounds: { contractId?: string; network?: string; roundId?: string }[],
+  config: { contractId: string; network: string }
+): void {
+  for (const r of rounds) {
+    if (r.contractId && r.contractId !== config.contractId) {
+      throw new Error(`checkpoint contract mismatch: stored contract ${r.contractId} does not match config contract ${config.contractId}`);
+    }
+    if (r.network && r.network !== config.network) {
+      throw new Error(`checkpoint network mismatch: stored network ${r.network} does not match config network ${config.network}`);
+    }
+  }
+}
+
 export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
   const {
     sdk,
@@ -119,6 +133,10 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     owner: explicitOwner,
     leaseMs,
   } = params;
+
+  // Load the checkpoint / stored rounds and validate before claiming work
+  const storedRounds = store.listRounds();
+  validateStoredCheckpoint(storedRounds, { contractId, network });
 
   const resolvedTime = resolveTimeContext(systemTime, time);
   const { clock, scheduler } = resolvedTime;
