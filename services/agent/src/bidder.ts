@@ -20,11 +20,14 @@ import {
 } from "@sub-rosa/tlock";
 
 import {
+  assertAppraisalQuoteAllowed,
+  assertAppraisalRequestBodyAllowed,
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
   bidFromAppraisal,
   stroopsToUsdc,
   verifySessionMandate,
+  type MandateAppraisalQuote,
   type SessionMandate,
 } from "./mandate.js";
 
@@ -41,6 +44,10 @@ export interface BidderAgentConfig {
   revealRound: number;
   /** Appraisal attributes — each agent can supply its own private view. */
   attributes: AppraisalAttributes;
+  /** Expected appraisal payment asset (C...). Falls back to mandate.appraisalAsset. */
+  appraisalAsset?: string;
+  /** Expected appraisal payment destination (payTo). Falls back to mandate.appraisalPayTo. */
+  appraisalPayTo?: string;
   x402Network?: Network;
   drand?: DrandClient;
   log?: (msg: string) => void;
@@ -153,16 +160,30 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
   const quotedPrice = BigInt(config.mandate.appraisalPriceStroops);
   assertAppraisalSpendAllowed(config.mandate, quotedPrice, 0n);
 
+  const requestBody = JSON.stringify(req);
+  // Fail closed before any payment: empty/oversized/credential-like bodies
+  // throw a typed refusal the keeper trace can show — no transfer happens.
+  assertAppraisalRequestBodyAllowed(requestBody);
+
+  const expectedAsset = config.appraisalAsset ?? config.mandate.appraisalAsset;
+  const expectedDestination = config.appraisalPayTo ?? config.mandate.appraisalPayTo;
+
   log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC)…`);
   const paidFetch = dependencies.createPaidFetch({
     secret: config.sessionSecret,
     network: config.x402Network ?? "stellar:testnet",
     rpcUrl: config.rpcUrl,
+    expectedQuote: {
+      ...(expectedAsset !== undefined ? { asset: expectedAsset } : {}),
+      ...(expectedDestination !== undefined ? { destination: expectedDestination } : {}),
+      maxAmountStroops: quotedPrice,
+      nowSeconds: clock.nowSeconds(),
+    },
   });
-  const paid = await paidFetch<{ appraisal: Appraisal }>(config.appraisalUrl, {
+  const paid = await paidFetch<{ appraisal: Appraisal; quote?: MandateAppraisalQuote }>(config.appraisalUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(req),
+    body: requestBody,
   });
   if (paid.status !== 200 || !paid.body.appraisal) {
     throw new Error("appraisal failed", { cause: normalizeError(paid.body, { status: paid.status }) });
@@ -170,6 +191,17 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
   const appraisal = paid.body.appraisal;
   if (appraisal.itemRef !== config.mandate.itemRef) {
     throw new Error("appraisal itemRef mismatch");
+  }
+  // Bind the settled quote (when the server echoes one) to the mandate before
+  // sealing: a drifted asset/amount/destination/expiry refuses the bid even
+  // though the payment already settled — the refusal is typed for traces.
+  if (paid.body.quote) {
+    assertAppraisalQuoteAllowed(config.mandate, paid.body.quote, {
+      spentSoFarStroops: 0n,
+      clock,
+      ...(expectedAsset !== undefined ? { expectedAsset } : {}),
+      ...(expectedDestination !== undefined ? { expectedDestination } : {}),
+    });
   }
 
   const { bidValue, escrow } = bidFromAppraisal(appraisal.suggestedMaxBid, config.mandate);
