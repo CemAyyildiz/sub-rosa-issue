@@ -8,6 +8,11 @@
 import { toHex, fromHex, commitment } from "@sub-rosa/tlock";
 import type { RoundReceipt } from "./receipt.js";
 import { networkFingerprint } from "./receipt.js";
+import {
+  verifyReceiptEvents,
+  type ReceiptEventsVerifyOptions,
+  type ReceiptEventsVerifyResult,
+} from "./receipt-events.js";
 
 // ── Verification result types ────────────────────────────────────────────
 
@@ -29,8 +34,13 @@ export interface VerificationResult {
   computedWinner: { address: string | null; value: bigint | null };
 }
 
-export interface VerifyOptions {
-  // Reserved for future extension.
+export interface VerifyOptions extends ReceiptEventsVerifyOptions {
+  /** The contract id (C…) the receipt is expected to belong to. When set, a
+   *  receipt whose `contractId` differs fails with `event_contract_mismatch`. */
+  expectedContractId?: string;
+  /** The network passphrase the receipt is expected to be bound to. When set,
+   *  a receipt whose `network` differs fails with `event_network_mismatch`. */
+  expectedNetworkPassphrase?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -100,6 +110,16 @@ export function verifyReceipt(receipt: RoundReceipt, options?: VerifyOptions): V
   if (!VALID_STATUSES.has(receipt.status)) {
     add("warning", "unknown_status", `unrecognised status: ${receipt.status}`, "status");
   }
+
+  // ══ Ordered on-chain event log (issue #379) ═════════════════════════════
+  // The receipt must list the round's commit/reveal/settle events in ledger
+  // order. Without this, a receipt that dropped a refund event or swapped two
+  // rounds would still verify as long as its hashes were consistent.
+  const eventsResult: ReceiptEventsVerifyResult = verifyReceiptEvents(receipt, {
+    expectedContractId: options?.expectedContractId,
+    expectedNetworkPassphrase: options?.expectedNetworkPassphrase,
+  });
+  issues.push(...eventsResult.issues);
 
   // ══ Bidders consistency ════════════════════════════════════════════════
   if (!Array.isArray(receipt.bidders)) {
