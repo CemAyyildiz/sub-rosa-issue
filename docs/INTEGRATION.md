@@ -73,18 +73,18 @@ const preflight = await client.preflightCommit({
 
 if (!preflight.ok) {
   if (preflight.error.kind === "contract_error") {
-    console.error(
-      "Contract rejected commit:",
-      preflight.error.contractErrorMessage,
+    logger.error(
+      "contract-rejected-commit",
+      "Contract rejected commit",
+      { message: preflight.error.contractErrorMessage }
     );
   } else {
-    console.error("Preflight failed:", preflight.error.message);
+    logger.error("preflight-failed", "Preflight simulation failed", { error: preflight.error.message });
   }
   return;
 }
 
-console.log("Estimated fee (stroops):", preflight.fee.transactionFee);
-console.log("Min resource fee:", preflight.fee.minResourceFee?.toString());
+logger.info("estimated-fee", "Estimated fee", { transactionFee: preflight.fee.transactionFee, minResourceFee: preflight.fee.minResourceFee?.toString() });
 
 await client.commit({ roundId, sealed, escrow });
 ```
