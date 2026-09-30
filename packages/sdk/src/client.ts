@@ -35,6 +35,7 @@ import {
 } from "./preflight.js";
 import {
   SubRosaClientConfigError,
+  SubRosaPaginationError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
   SubRosaSubmitError,
@@ -568,17 +569,17 @@ export class SubRosaClient {
     return tx.result.unwrap();
   }
 
-  /** Fetch a single page of bidders. Zero-based cursor; next_cursor = 0 means
-   *  no more pages. Limit must be 1-100. */
+  /** Fetch one page. Start with undefined, then pass next_cursor unchanged.
+   *  has_more is false at exhaustion. Limit must be 1-100. */
   async getBiddersPage(
     roundId: number | bigint,
-    cursor: number,
+    cursor: Uint8Array | undefined,
     limit: number,
   ): Promise<BiddersPage> {
     const tx = await this.#validatedContractCall(() =>
       this.contract.get_bidders_page({
         round_id: normalizeRoundId(roundId),
-        cursor,
+        cursor: cursor === undefined ? undefined : toBuffer(cursor),
         limit,
       }),
     );
@@ -588,13 +589,46 @@ export class SubRosaClient {
   /** Async generator that lazily pages through all bidders for a round.
    *  Fetches one page at a time, yielding each bidder individually. */
   async *bidders(roundId: number | bigint): AsyncGenerator<string> {
-    let cursor = 0;
+    const rid = normalizeRoundId(roundId);
+    let cursor: Buffer | undefined;
+    let total: number | undefined;
+    const seen = new Set<string>();
+    const cursors = new Set<string>();
     const PAGE_SIZE = 100;
-    do {
-      const page = await this.getBiddersPage(roundId, cursor, PAGE_SIZE);
+    while (true) {
+      const page = await this.getBiddersPage(rid, cursor, PAGE_SIZE);
+      total ??= page.total;
+      if (!Number.isInteger(page.total) || page.total < 0 || page.total !== total
+          || !Array.isArray(page.data) || page.data.length > PAGE_SIZE
+          || typeof page.has_more !== "boolean"
+          || page.has_more !== (page.next_cursor != null)) {
+        throw new SubRosaPaginationError(rid, "invalid_page");
+      }
+      // Validate the entire page before yielding any of it.
+      for (const addr of page.data) {
+        if (seen.has(addr)) {
+          throw new SubRosaPaginationError(rid, "repeated_bidder", addr);
+        }
+        seen.add(addr);
+      }
+      if (seen.size > total || (page.has_more && (page.data.length === 0 || seen.size >= total))
+          || (!page.has_more && seen.size !== total)) {
+        throw new SubRosaPaginationError(rid, "invalid_page");
+      }
+      if (page.has_more) {
+        if (!(page.next_cursor instanceof Uint8Array) || page.next_cursor.length !== 41) {
+          throw new SubRosaPaginationError(rid, "invalid_page");
+        }
+        const key = Buffer.from(page.next_cursor).toString("hex");
+        if (cursors.has(key)) {
+          throw new SubRosaPaginationError(rid, "repeated_cursor");
+        }
+        cursors.add(key);
+      }
       for (const addr of page.data) yield addr;
-      cursor = page.next_cursor;
-    } while (cursor !== 0);
+      if (!page.has_more) return;
+      cursor = page.next_cursor ?? undefined;
+    }
   }
 
   /** The sealed payload while it is still in Temporary storage; undefined once

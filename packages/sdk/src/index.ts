@@ -28,6 +28,7 @@ export {
 } from "./submitter.js";
 export {
   SubRosaClientConfigError,
+  SubRosaPaginationError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
   SubRosaPreflightError,

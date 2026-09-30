@@ -157,16 +157,16 @@ test("a tlock SealedBid encodes byte-for-byte into commit", () => {
   assert.equal(scValToNative(args[4]), value);
 });
 
-test("get_bidders_page encodes u64 round_id, u32 cursor, u32 limit", () => {
+test("get_bidders_page encodes u64 round_id, optional bytes cursor, u32 limit", () => {
   const c = newClient();
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 5n,
-    cursor: 10,
+    cursor: Buffer.alloc(41, 1),
     limit: 50,
   });
   assert.equal(args.length, 3);
   assert.equal(scValToNative(args[0]), 5n);
-  assert.equal(scValToNative(args[1]), 10);
+  assert.deepEqual(Buffer.from(scValToNative(args[1])), Buffer.alloc(41, 1));
   assert.equal(scValToNative(args[2]), 50);
 });
 
@@ -175,7 +175,7 @@ test("get_bidders_page rejects limit 0 (contract enforces 1-100)", () => {
   // The spec type is u32, so limit=0 should encode fine; the contract rejects it.
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 1n,
-    cursor: 0,
+    cursor: undefined,
     limit: 0,
   });
   assert.equal(args.length, 3);
@@ -186,7 +186,7 @@ test("get_bidders_page rejects limit > 100 (contract enforces 1-100)", () => {
   const c = newClient();
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 1n,
-    cursor: 0,
+    cursor: undefined,
     limit: 101,
   });
   assert.equal(args.length, 3);
