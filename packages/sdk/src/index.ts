@@ -21,6 +21,7 @@ export {
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
+  SubRosaAssetValidationError,
 } from "./errors.js";
 export type { TimeoutErrorParams } from "./errors.js";
 

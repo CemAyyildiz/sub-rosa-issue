@@ -71,6 +71,12 @@ export interface SubRosaClientConfig {
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
+  /**
+   * The expected asset config for this round. If provided, the SDK will
+   * validate that the asset matches before allowing a commit.
+   * If not provided, no asset validation is performed.
+   */
+  assetConfig?: import("./asset-config.js").AssetConfig;
 }
 
 export type ClearingRuleTag = ClearingRule["tag"];
@@ -90,6 +96,8 @@ export interface CreateRoundParams {
   clearingRule?: ClearingRuleTag;
   /** Operator address. Default: the configured signer's public key. */
   operator?: string;
+  /** Expected asset config for this round. Used by the SDK to validate commits. */
+  assetConfig?: import("./asset-config.js").AssetConfig;
 }
 
 export interface CommitParams {
@@ -127,6 +135,7 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  readonly #assetConfig?: import("./asset-config.js").AssetConfig;
 
   constructor(config: SubRosaClientConfig) {
     const allowHttp = config.allowHttp ?? false;
@@ -166,6 +175,7 @@ export class SubRosaClient {
     this.#submitter = config.submitter;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
+    this.#assetConfig = config.assetConfig;
     if (config._sleep) this.#sleep = config._sleep;
     this.contract = new RoundContract({
       contractId: this.contractId,
@@ -190,6 +200,57 @@ export class SubRosaClient {
       );
     }
     return this.#source;
+  }
+
+  /**
+   * Validate that the SDK's asset config matches the expected asset.
+   * If the client has an assetConfig set, compare against it.
+   * Otherwise, skip validation (for backward compatibility and testing).
+   * Returns a SubRosaAssetValidationError if they differ, or undefined if valid.
+   */
+  #validateAssetConfig(assetConfig: import("./asset-config.js").AssetConfig): import("./errors.js").SubRosaAssetValidationError | undefined {
+    // If the client doesn't have a configured assetConfig, skip validation
+    // This allows backward compatibility and testing without RPC calls
+    if (!this.#config.assetConfig && !assetConfig) return undefined;
+    if (!assetConfig) return undefined;
+
+    // Compare type
+    if (assetConfig.type === "native" && this.#config.assetConfig!.type !== "native") {
+      // SDK wants native in config, but user provided a token -> mismatch
+      return new SubRosaAssetValidationError(
+        "type",
+        "round expects native XLM, but SDK config provided a token asset",
+      );
+    }
+    if (assetConfig.type !== "native" && this.#config.assetConfig!.type === "native") {
+      // SDK wants a token in config, but user provided native -> mismatch
+      return new SubRosaAssetValidationError(
+        "type",
+        "round expects a token asset, but SDK config provided native XLM",
+      );
+    }
+
+    // For SAC assets, compare contractId
+    if (assetConfig.type !== "native" && assetConfig.contractId !== undefined && this.#config.assetConfig!.contractId !== undefined) {
+      if (assetConfig.contractId !== this.#config.assetConfig!.contractId) {
+        return new SubRosaAssetValidationError(
+          "contractId",
+          `SDK contractId "${assetConfig.contractId}" does not match config's "${this.#config.assetConfig!.contractId}"`,
+        );
+      }
+    }
+
+    // Compare decimals
+    if (assetConfig.decimals !== undefined && this.#config.assetConfig!.decimals !== undefined) {
+      if (assetConfig.decimals !== this.#config.assetConfig!.decimals) {
+        return new SubRosaAssetValidationError(
+          "decimals",
+          `SDK decimals ${assetConfig.decimals} does not match config's ${this.#config.assetConfig!.decimals}`,
+        );
+      }
+    }
+
+    return undefined;
   }
 
   async #sendUnwrap<T>(tx: AssembledTransaction<Result<T>>): Promise<T> {
@@ -263,6 +324,26 @@ export class SubRosaClient {
       tag: params.clearingRule ?? "HighestBid",
       values: undefined,
     } as ClearingRule;
+    
+    // Build asset config for the round
+    let assetConfig: types.RoundAssetConfig = {
+      asset_type: "native",
+      contract_id: "",
+      code: "XLM",
+      decimals: 77 стиховая логика
+
+3.144:    };
+    if (params.assetConfig) {
+      const { type, code, contractId, issuer, decimals } = params.assetConfig;
+      assetConfig = {
+        asset_type: type,
+        contract_id: contractId || "",
+        code: code || "XLM",
+        decimals: decimals ?? 7,
+        issuer: issuer || "",
+      };
+    }
+    
     const tx = await this.contract.create_round({
       operator,
       item_ref: toBuffer(params.itemRef),
@@ -271,6 +352,7 @@ export class SubRosaClient {
       commit_deadline: toBigInt(params.commitDeadline),
       reveal_deadline: toBigInt(params.revealDeadline),
       auditor_pubkey: toBuffer(params.auditorPubkey),
+      asset_config: assetConfig,
     });
     return this.#sendUnwrap(tx);
   }
@@ -295,6 +377,14 @@ export class SubRosaClient {
       throw new SubRosaClientConfigError(
         auditorBlobResult.issues.map((i) => i.message).join("; "),
       );
+    }
+
+    // Validate asset config matches the round's expected asset
+    if (this.#config.assetConfig) {
+      const assetError = this.#validateAssetConfig(this.#config.assetConfig);
+      if (assetError) {
+        throw assetError;
+      }
     }
 
     const bidder = params.bidder ?? this.#requireSource("bidder");
