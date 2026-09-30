@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, Vec};
+use soroban_sdk::{contracterror, contracttype, String, Address, Bytes, BytesN, Vec};
 
 /// Contract error codes. Every failure state from the PRD has a defined code —
 /// there is no undefined behavior and no silent fallback.
