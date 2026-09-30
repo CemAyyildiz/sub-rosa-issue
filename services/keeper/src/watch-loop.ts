@@ -130,7 +130,13 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     settlementGuard,
     isStopping,
     time,
+    owner: explicitOwner,
+    leaseMs,
   } = params;
+
+  // Load the checkpoint / stored rounds and validate before claiming work
+  const storedRounds = store.listRounds();
+  validateStoredCheckpoint(storedRounds, { contractId, network });
 
   const resolvedTime = resolveTimeContext(systemTime, time);
   const { clock, scheduler } = resolvedTime;
@@ -202,6 +208,12 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           lastAction: acted ? summarizeTick(tick) : storedRound.lastAction,
         });
 
+        if (!active) {
+          // Terminal success: the step is done, so the round goes back to the
+          // queue instead of waiting out the lease.
+          store.releaseLease(roundId, { owner, contractId, network });
+        }
+
         if (active || acted) {
           log(
             `[round ${roundId}] ${summarizeTick(tick)}` +
@@ -219,6 +231,15 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           retryCount: (stored?.retryCount ?? 0) + 1,
           lastError: normalizeError(e).message,
         });
+        if (isDefinitiveContractFailure(e)) {
+          store.releaseLease(roundId, { owner, contractId, network });
+          log(`[round ${roundId}] lease released after definitive contract failure`);
+        } else {
+          log(
+            `[round ${roundId}] lease kept until ` +
+              `${clock.toISOString(claim.lease.expiresAtMs)} — ${normalizeError(e).message}`,
+          );
+        }
       }
     }
 
