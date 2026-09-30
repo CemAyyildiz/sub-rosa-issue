@@ -13,11 +13,14 @@ import { randomBytes } from "@noble/hashes/utils.js";
 import { commitment, decodeBidPreimage, encodeBidPreimage, NONCE_BYTES } from "./commitment.js";
 import { sealIdentity } from "./auditor.js";
 import type { DrandClient } from "./quicknet.js";
+import { assertContractId, assertBidderId } from "./validate.js";
 
 const utf8Encode = new TextEncoder();
 const utf8Decode = new TextDecoder();
 
 export interface SealBidParams {
+  contractId: string;
+  bidderId: string;
   value: bigint;
   nonce: Uint8Array;
   round: number;
@@ -41,7 +44,10 @@ export function generateNonce(): Uint8Array {
 }
 
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
-  const { value, nonce, round, client, identity, auditorPublicKey } = params;
+  const { contractId, bidderId, value, nonce, round, client, identity, auditorPublicKey } = params;
+
+  assertContractId(contractId);
+  assertBidderId(bidderId);
 
   if (!Number.isInteger(round) || round < 1) {
     throw new RangeError(`round must be a positive integer, got ${round}`);

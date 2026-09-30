@@ -16,6 +16,7 @@ import { timelockDecrypt, timelockEncrypt, Buffer as TlockBuffer } from "tlock-j
 import { sealIdentity } from "./auditor.js";
 import { beBytesToI128, i128ToBeBytes, NONCE_BYTES, VALUE_BYTES } from "./commitment.js";
 import type { DrandClient } from "./quicknet.js";
+import { assertContractId, assertBidderId } from "./validate.js";
 
 const utf8Encode = new TextEncoder();
 const utf8Decode = new TextDecoder();
@@ -46,6 +47,8 @@ export interface PayloadEnvelope {
 }
 
 export interface SealPayloadParams extends PayloadEnvelope {
+  contractId: string;
+  bidderId: string;
   round: number;
   client: DrandClient;
   identity?: Uint8Array;
@@ -148,6 +151,8 @@ export function payloadCommitment(envelope: PayloadEnvelope): Uint8Array {
 /** Timelock-encrypt a structured application payload to Drand round R. */
 export async function sealPayload(params: SealPayloadParams): Promise<SealedPayload> {
   const {
+    contractId,
+    bidderId,
     round,
     client,
     identity,
@@ -156,6 +161,10 @@ export async function sealPayload(params: SealPayloadParams): Promise<SealedPayl
     nonce,
     payload,
   } = params;
+
+  assertContractId(contractId);
+  assertBidderId(bidderId);
+
   const envelope: PayloadEnvelope = {
     ...(amount === undefined ? {} : { amount }),
     nonce,
