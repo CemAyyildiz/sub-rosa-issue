@@ -940,21 +940,112 @@ fn seeded_case_7_lowest_bid_reproducible() {
 // REAL DRAND VECTOR TESTS (preserved verbatim)
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[test]
-fn drand_bls_verify_real_vector() {
-    let env = Env::default();
-    let sig = hexn::<96>(&env, VEC_SIG_G1);
-    let cfg = config_with(&env, VEC_PUBKEY_C1C0, VEC_NEGGEN_C1C0);
-    assert!(drand::verify_round(&env, &cfg, VEC_ROUND, &sig),
-        "c1c0-ordered constants must verify the live quicknet signature on-chain");
+// #[test]
+// fn drand_bls_verify_real_vector() {
+//     let env = Env::default();
+//     let sig = hexn::<96>(&env, VEC_SIG_G1);
+//     let cfg = config_with(&env, VEC_PUBKEY_C1C0, VEC_NEGGEN_C1C0);
+//     assert!(drand::verify_round(&env, &cfg, VEC_ROUND, &sig),
+//         "c1c0-ordered constants must verify the live quicknet signature on-chain");
+// }
+
+// #[test]
+// fn drand_bls_verify_rejects_wrong_round() {
+//     let env = Env::default();
+//     let sig = hexn::<96>(&env, VEC_SIG_G1);
+//     let cfg = config_with(&env, VEC_PUBKEY_C1C0, VEC_NEGGEN_C1C0);
+//     assert!(!drand::verify_round(&env, &cfg, VEC_ROUND + 1, &sig));
+// }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED DRAND VECTOR TESTS (Issue #404)
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn get_vector_json() -> &'static str {
+    include_str!("../../../services/drand-tools/src/drand_vectors.json")
+}
+
+fn get_json_string<'a>(json: &'a str, key_pattern: &str) -> &'a str {
+    let start = json
+        .find(key_pattern)
+        .unwrap_or_else(|| panic!("pattern {} not found", key_pattern))
+        + key_pattern.len();
+    let mut val = &json[start..];
+    val = val.trim_start();
+    if val.starts_with('"') {
+        val = &val[1..];
+        let end = val.find('"').unwrap();
+        &val[..end]
+    } else {
+        let end = val
+            .find(|c: char| c == ',' || c == '\n' || c == '}')
+            .unwrap_or(val.len());
+        val[..end].trim()
+    }
+}
+
+fn get_json_u64(json: &str, key_pattern: &str) -> u64 {
+    get_json_string(json, key_pattern).parse().unwrap()
 }
 
 #[test]
-fn drand_bls_verify_rejects_wrong_round() {
+fn shared_vector_accepted_on_both_sides() {
     let env = Env::default();
-    let sig = hexn::<96>(&env, VEC_SIG_G1);
-    let cfg = config_with(&env, VEC_PUBKEY_C1C0, VEC_NEGGEN_C1C0);
-    assert!(!drand::verify_round(&env, &cfg, VEC_ROUND + 1, &sig));
+    let json = get_vector_json();
+
+    let round = get_json_u64(json, "\"round\":");
+    let sig_g1 = get_json_string(json, "\"sig_g1\":");
+    let pubkey = get_json_string(json, "\"pubkey_c1c0\":");
+    let neggen = get_json_string(json, "\"neggen_c1c0\":");
+
+    let sig = hexn::<96>(&env, sig_g1);
+    let cfg = config_with(&env, pubkey, neggen);
+
+    assert!(
+        drand::verify_round(&env, &cfg, round, &sig),
+        "valid offline vector must be accepted"
+    );
+}
+
+#[test]
+fn shared_vector_wrong_round_rejected() {
+    let env = Env::default();
+    let json = get_vector_json();
+
+    let sig_g1 = get_json_string(json, "\"sig_g1\":");
+    let pubkey = get_json_string(json, "\"pubkey_c1c0\":");
+    let neggen = get_json_string(json, "\"neggen_c1c0\":");
+    let wrong_round = get_json_u64(json, "\"invalidWrongRound\":");
+
+    let sig = hexn::<96>(&env, sig_g1);
+    let cfg = config_with(&env, pubkey, neggen);
+
+    assert!(
+        !drand::verify_round(&env, &cfg, wrong_round, &sig),
+        "wrong round offline vector must be rejected"
+    );
+}
+
+#[test]
+#[should_panic(expected = "hex length mismatch")]
+fn shared_vector_truncated_signature_rejected() {
+    let env = Env::default();
+    let json = get_vector_json();
+    let trunc_sig = get_json_string(json, "\"invalidTruncatedSignature\":");
+
+    // The ABI strictly requires exactly 96 bytes. This mirrors the Soroban VM 
+    // rejecting the transaction during argument conversion before open_reveal runs.
+    hexn::<96>(&env, trunc_sig);
+}
+
+#[test]
+#[should_panic(expected = "hex length mismatch")]
+fn shared_vector_empty_signature_rejected() {
+    let env = Env::default();
+    let json = get_vector_json();
+    let empty_sig = get_json_string(json, "\"invalidEmptySignature\":");
+    
+    hexn::<96>(&env, empty_sig);
 }
 
 fn setup_real_drand() -> Fixture {
