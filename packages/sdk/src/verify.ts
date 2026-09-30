@@ -39,6 +39,8 @@ const VALID_STATUSES = new Set([
   "Open", "Revealing", "Cleared", "Settled", "Voided",
 ]);
 
+const SUPPORTED_SCHEMA_VERSIONS = new Set([1]);
+
 /** Parse a decimal bigint string. Returns null on malformed input. */
 function parseBigInt(s: string): bigint | null {
   try {
@@ -60,7 +62,7 @@ export function verifyReceipt(receipt: RoundReceipt, options?: VerifyOptions): V
   ) => issues.push({ severity, code, message, path });
 
   // ══ Schema ══════════════════════════════════════════════════════════════
-  if (receipt.version !== 1) {
+  if (typeof receipt.version !== "number" || !SUPPORTED_SCHEMA_VERSIONS.has(receipt.version)) {
     add("error", "unsupported_version", `version ${receipt.version} is not supported`);
     return { valid: false, issues, computedWinner: { address: null, value: null } };
   }
@@ -81,6 +83,9 @@ export function verifyReceipt(receipt: RoundReceipt, options?: VerifyOptions): V
         `networkFingerprint does not match sha256 of network passphrase`,
         "networkFingerprint",
       );
+    }
+    if (typeof receipt.contractId !== "string" || !receipt.contractId.startsWith("C")) {
+      add("error", "foreign_contract", "contractId is not a valid C-address for this network", "contractId");
     }
   }
   if (typeof receipt.contractId !== "string" || !receipt.contractId.startsWith("C")) {
