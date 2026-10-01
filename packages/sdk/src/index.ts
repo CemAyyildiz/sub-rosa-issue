@@ -27,6 +27,11 @@ export {
   type TransactionSubmitter,
 } from "./submitter.js";
 export {
+  ROUND_CONTRACT_ERRORS,
+  ROUND_CONTRACT_ERRORS_BY_NAME,
+  getRoundContractError,
+  isRoundContractErrorRetryable,
+  diffContractErrorMapping,
   SubRosaClientConfigError,
   SubRosaPaginationError,
   SubRosaMissingReturnValueError,
@@ -38,6 +43,9 @@ export {
   SubRosaAssetValidationError,
 } from "./errors.js";
 export type {
+  RoundContractErrorCode,
+  RoundContractErrorSpec,
+  ContractErrorEntry,
   NetworkMismatchErrorParams,
   PreflightFailureKind,
   SubRosaPreflightErrorParams,
