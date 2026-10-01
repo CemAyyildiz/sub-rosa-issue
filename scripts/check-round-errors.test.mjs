@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
@@ -47,7 +48,7 @@ describe("parseTypesRs", () => {
       "utf-8",
     );
     const variants = parseTypesRs(content);
-    assert.equal(variants.length, 27);
+    assert.equal(variants.length, 28);
     assert.deepEqual(
       variants.find((v) => v.name === "CommitClosed"),
       { name: "CommitClosed", code: 10 },
@@ -62,7 +63,7 @@ describe("parseErrorsMd", () => {
       "utf-8",
     );
     const variants = parseErrorsMd(content);
-    assert.equal(variants.length, 27);
+    assert.equal(variants.length, 28);
     assert.deepEqual(
       variants.find((v) => v.name === "InvalidLimit"),
       { name: "InvalidLimit", code: 39 },
