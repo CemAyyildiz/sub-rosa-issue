@@ -212,6 +212,8 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
   const drand = config.drand ?? quicknet();
   const nonce = generateNonce();
   const sealed = await dependencies.sealBid({
+    contractId: config.mandate.contractId,
+    bidderId: sessionKp.publicKey(),
     value: bidValue,
     nonce,
     round: revealRound,

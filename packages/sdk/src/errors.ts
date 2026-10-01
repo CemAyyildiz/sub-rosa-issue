@@ -95,6 +95,8 @@ export class SubRosaAssetValidationError extends Error {
 
   constructor(readonly field: string, message: string) {
     super(`${field}: ${message}`);
+  }
+}
 
 export type PreflightFailureKind =
   | "rpc_error"
