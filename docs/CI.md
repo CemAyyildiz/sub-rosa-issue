@@ -1,7 +1,16 @@
 # CI and quality gates
 
-This document describes automated checks that protect the TypeScript workspace
-(`packages/*` and `services/*`).
+This document describes automated checks for the web app and TypeScript
+workspaces (`apps/*`, `packages/*`, and `services/*`).
+
+## Web checks
+
+The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm web:test`,
+`pnpm web:typecheck`, and `pnpm web:build` in order. Run the same three commands
+locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
+CI job configuration.
 
 ## Test coverage gate
 
@@ -78,3 +87,46 @@ and pull request to `main`).
 Bump `packageManager` in `package.json` and every `pnpm/action-setup`
 `version:` in `.github/workflows/*.yml` together in the same PR; the check
 fails loudly if they drift apart.
+
+## Bindings worktree cleanliness gate
+
+After `pnpm bindings:check` regenerates the round contract's TypeScript
+bindings, CI runs `git diff --exit-code` so any unexpected drift in a
+tracked, generated file is visible and blocking, not just the specific
+`index.ts` comparison `bindings:check` already does on its own.
+
+### CI workflow
+
+`.github/workflows/bindings-check.yml`, immediately after the
+"Check generated bindings are up to date" step.
+
+### Run locally
+
+```bash
+pnpm bindings:check
+git diff --exit-code
+```
+
+## Bindings check
+
+GitHub Actions workflow: `.github/workflows/bindings-check.yml`
+
+Generated contract bindings are built with Stellar CLI **22.8.2**. That is the
+latest stable 22.x release on crates.io, and it is the newest CLI that still
+supports this repo's `soroban-sdk` 22 (`Cargo.lock` resolves 22.0.11).
+`stellar-cli` 23.0.0 and newer depend on `soroban-sdk` 23, so they are not
+used for this contract.
+
+CI installs that release with:
+
+```bash
+cargo install stellar-cli --version 22.8.2 --locked
+stellar --version
+```
+
+`stellar --version` runs before `pnpm bindings:check`. The pin, `--locked`, and
+print order are asserted by:
+
+```bash
+node --test scripts/check-bindings-cli.test.mjs
+```
