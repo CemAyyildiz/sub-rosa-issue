@@ -1,7 +1,16 @@
 # CI and quality gates
 
-This document describes automated checks that protect the TypeScript workspace
-(`packages/*` and `services/*`).
+This document describes automated checks for the web app and TypeScript
+workspaces (`apps/*`, `packages/*`, and `services/*`).
+
+## Web checks
+
+The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm web:test`,
+`pnpm web:typecheck`, and `pnpm web:build` in order. Run the same three commands
+locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
+CI job configuration.
 
 ## Test coverage gate
 
@@ -68,4 +77,28 @@ tracked, generated file is visible and blocking, not just the specific
 ```bash
 pnpm bindings:check
 git diff --exit-code
+```
+
+## Bindings check
+
+GitHub Actions workflow: `.github/workflows/bindings-check.yml`
+
+Generated contract bindings are built with Stellar CLI **22.8.2**. That is the
+latest stable 22.x release on crates.io, and it is the newest CLI that still
+supports this repo's `soroban-sdk` 22 (`Cargo.lock` resolves 22.0.11).
+`stellar-cli` 23.0.0 and newer depend on `soroban-sdk` 23, so they are not
+used for this contract.
+
+CI installs that release with:
+
+```bash
+cargo install stellar-cli --version 22.8.2 --locked
+stellar --version
+```
+
+`stellar --version` runs before `pnpm bindings:check`. The pin, `--locked`, and
+print order are asserted by:
+
+```bash
+node --test scripts/check-bindings-cli.test.mjs
 ```
